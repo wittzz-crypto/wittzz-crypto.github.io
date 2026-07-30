@@ -1,0 +1,575 @@
+---
+title: 'Reading 04'
+publishDate: 'July 30, 2026'
+updatedDate: 'July 30, 2026'
+description: '7 月以来一些论文和博客阅读'
+tags:
+  - Embodied AI
+  - Blog Reading
+  - Paper Reading
+heroImage: { src: './vibe_coding_keyboard.jpg', color: '#9698C1' }
+---
+
+## Qwen-Robot
+
+### Qwen-RobotWorld(2606.17030)
+
+Qwen-Robot 系列展示了用基模的思路来解决具身模型问题的实践。Qwen-RobotWorld 是一个**语言**条件的视频世界模型，在精心构建的视频-文本对数据上进行训练。
+
+**用语言统一数据**
+
+机器人的高度异构，导致每种任务、每种机器人都需要独立的动作接口。为了在一个统一模型里联合训练，Qwen-RobotWorld 将 20 多种机型、500 多个动作类型都映射到**语言**中，涵盖夹爪、自动驾驶、室内导航等领域。
+
+本文强调，在足够精确严谨的标注下，语言比低层动作表示更能编码状态转移。具体来说，语言标注包括：
+- 任务目标：高层**意图**， $s_t$ 和 $s_{t+1}$ 间发生什么变化
+- 动作细节：时空轨迹、微动作、速度、力，格外强调了**视角**
+- 物理反馈：**可观察**的后果，如位移、变形、接触状态变化
+上述描述构成一个完整的状态转移。基于此，生成综合（视角-智能体-动作-反馈）和简洁（视角-智能体-关键动作元素）两种动作描述。训练时以各 50% 的概率采样。
+
+值得注意的是，这个标注方式是**本体无关**、**场景无关**的：
+![](./file-20260703090953547)
+
+在动作维度上，覆盖了 500 多个动作类别——Agibot-World 的 84 种（抓取、推动、倾倒等），其他操作数据集中的独特基元以及移动与导航动作（转向、变道、航点追踪、避障等），划分为四个层次：(1) 操作基元，(2) 长时程组合动作，(3) 移动与导航动作，(4) 动态及可变形交互。这种系统性覆盖确保生成的具身视频-文本对的丰富性，这是单一领域无法实现的。
+
+**数据处理管线**
+
+1. 原始数据采集
+	通用视频：纪录片、专业素材库、精选网络片段。操作、自动驾驶等数据来源见上图。
+2. 视频预处理
+	视频需生成结构统一的片段，包括帧提取/插值（统一到 24 fps），子任务分解，选择主视角，多视角拼接（多个视角时序对齐、放进同一个画布）
+3. 层级标注
+	按照前述的语言标注方法编写了一个模板提示词，生成两种粒度的描述。
+4. 标注质量过滤
+	结合大模型自动化评判和人工评判，判断事实准确率、具体性、指令清晰度、观点一致性等。针对特定问题模式（可能是特定场景/任务/机型，如户外光照、液体倾倒、双臂协调）进行迭代式优化：设计专门提示模板，优化后的标注通过评判流水线重估，直到符合标准。
+
+最后的数据包含约 860 万个视频-文本对，超 2 亿个观测帧（按 24fps 估算，不到 4000 小时），具身数据 70%，通用数据 30%。具身数据中，单视角操作约 71%，多视角操作约 26%，余下为导航和驾驶数据。
+
+**模型架构及训练**
+![](./file-20260703103340775)
+
+60 层 MMDiT，总参数量包括 LLM 7B，VAE 127M，DiT 20B。采用 3D RoPE 编码时间、单帧H、单帧W，其中时间 16 维，H/W 各 56 维。
+
+1. 预训练：使用通用非具身数据，在共享主干网络上进行 T2I, T2V, TI2V 训练。
+2. SFT：在每个 batch 中保留通用数据，逐步增加具身数据比例。具体来说，首先加入人类手部操作和多机型机器人数据，然后加入多视角数据，最后加入高复杂度和长程推理任务。
+
+**评估**
+
+与通用视频模型（Veo3, Wan2.6, Sora2 等），具身视频模型（Cosmos, GigaWorld 等）在 EWMBench, DreamGen, PBench, WorldModelBench 上进行评估，取得 SOTA。
+
+在定性评价主要关注以下方面：
+- 跨具身：同样的指令，同时适用于单臂、双臂、人形和灵巧手
+- 跨任务✕环境：Pick&Place，布料折叠，人-机器人手递手任务
+- 多视角一致性：同步生成 3 路摄像头（主、左腕、右腕）
+- 指令遵循：RoboTwin-IF zero-shot 性能
+
+**总结**
+
+Qwen-RobotWorld 的核心 insight：将各种动作模态统一到**语言**模态，从而可以按照视频模型的方法来训练具身世界模型；同一骨干网络在多样数据上进行训练；数据质量（多样性、结构性）> 模型架构。一个 27B 模型，仅在不到 5000 小时数据上训练就达到具身世界模型 SOTA，充分说明上述 insight 的有效性。
+
+不过，数据的准备和处理过程有大量脏活，尤其是子任务分解、标注质量评分、针对特定任务优化标注等等，依赖人类直觉或是 LLM 的视觉能力，显得方法不够优美。此外，数据完全没有考虑低层动作标签，仅通过视频 caption 作为动作，对视频质量有很高要求。
+
+### Qwen-RobotManip(2606.17846)
+ 
+RobotManip 是一个 pi-like VLA 模型。报告中主要说明了 Qwen-Robot 的4个贡献：跨具身对齐；可扩展的数据；更有价值的 benchmark 评估；真机评估。
+
+**数据工程：清洗、对齐、扩展**
+
+对于动作标签数据，使用了 ~38100 小时开源数据，涵盖单臂/双臂/人形/移动(11k)、人类第一人称视角(2k)、人类转机器人(25k)数据。
+
+设计了一套流程，能够端到端将 egocentric 数据转换为 15 种机器人形态的数据：
+1. *动作*：用 MANO 定位手部关键点，再重定向到夹爪 ee pos，朝向和开合宽度。对位置 和夹爪宽度应用 Savitzky-Golay 滤波，对朝向应用球面线性插值，保证平滑。
+2. *视觉*：给定若干帧末端位姿和最大可达范围，最优化获得机体基座位置；在 MuJoCo 中，根据动作渲染机器人图像和深度图；SAM3 对人手施加掩码，DA3 获取人类视频深度图；最后根据深度图将机械臂合成到干净背景上。
+3. *动作速度*：人类操作速度明显快于遥操，通过下采样来减速。
+
+![](./file-20260706214116759)
+
+所有带动作标签的数据还要经过预处理和筛选。**动作**方面：
+1. *突变过滤*：比较平滑化前后轨迹，若残差超过阈值，且加速度/加加速度也超过阈值，说明此处动作存在突变，排除某几帧或整条（按照实际情况确定）
+2. *动作-状态对齐*：按照状态/动作计算轨迹应该基本一致，略有时间偏移。同一段轨迹先估计时间延迟，然后计算两个轨迹的方向一致性，低于特定阈值的被排除。
+3. *极值过滤*：状态/动作值超出 1/99 百分位数的帧被排除
+4. *动作格式对齐*：根据机器人的 URDF 计算 ee pos 和 joint pos 的一致性，修正位置偏移问题
+5. *方向对齐*：世界坐标系 x 轴正方向对应机器人前进方向
+
+**跨模态**对齐方面：
+1. *指令一致*：先将视频按照子任务分割，然后让 VLM 进行推理，投票表决指令语义是否一致
+2. *视频状态一致*：计算渲染图和 SAM3 分割的机器人掩码的重叠度（IoU），排除重叠度过低的样本
+3. *视频质量*：在保留关键事件（如夹爪闭合）前提下，移除黑色、损坏、模糊、长时间静态的帧
+
+对于视觉语言（VL）数据，涵盖通用、空间感知、OCR、专业知识、指令遵循、**具身 VL 数据**。具身 VL 数据包括操作思维链、ego 视频理解、2D 轨迹预测等，从机器人数据中构建。
+
+**架构和训练**
+
+![](./file-20260706214139246)
+
+整体架构类似 pi_0.5，但有非常多细节改动。
+
+架构：
+1. 状态和动作表示
+	用高达**80 维向量**表示一个动作，包括：$$(\space7_{jointPos}+3_{EEPos}+6_{rotate6D}+1_{gripper}+12_{dexHand}\space) * 2_{dualArm}+22_{free}$$以同时支持关节/末端执行器表示，并兼容各种机型。
+2. 统一末端执行器坐标系
+	根据标定好的 ee 到摄像头的内外参，将 **ee 坐标投影到摄像头坐标系**。这样变换后，观测图像中位置相似的 ee，在动作数值上也相似，从而促进跨机体迁移。
+3. 位置编码：CaPE + TimePE
+	相机位姿和时间分别占据 Position Embedding 的 32 维，同时施加在**图像**（拍摄该图像的相机）和**状态/动作**（坐标系所对应的参考相机）上。
+4. ee 条件化
+	每个状态/动作都对应一个 ee 类别（如单臂，左臂，头部，基座等）。学习一个 ee 类别词表，词表 token 通过 AdaNorm 加入 action expert 中间层。
+5. 注意力掩码
+	VLM 中，视觉 token 直接交错插入语言 token。在 action expert 中，偶数层关注视觉 token（偶数索引），奇数层关注语言 token（奇数索引）。
+
+构建输入：
+1. 结构化的指令
+	包括机型、指令（高层次描述）、速度（episode 时间步长度）、FPS、相机位姿（arm side 或 opposite side）
+2. 上下文
+	上下文是一个（观测，状态，动作）三元组，一组 K 步，共 H 组。观测直接进入 VLM，而状态和动作用轻量 MLP 处理。采用两种方法注入上下文，包括统一（全部输入 VLM）和双路（仅图像输入 VLM，状态/动作输入 DiT）。
+3. **上下文随机采样**
+	如果始终提供**最近**的 H 个上下文 chunk，容易导致模型退化（复制最后一个动作）。所以在训练时采用回合内**随机**采样的方法，起到数据多样化的作用。
+
+两阶段训练：
+1. 预训练：在前述数据上同时训练 VLM 和 VLA（1:9），分别采用 NTP 和 Flow Matching。总损失：$L=L_{FM}+0.1L_{VLM}$。
+2. SFT：仅优化流匹配损失，且**不进行数据清洗**，并应用颜色抖动增强。
+
+对于后训练的消融表明，**加入 VL 数据和预训练数据**协同训练，能够避免过拟合，反而提高性能上限。
+
+**实验：OOD 基准和真机评测**
+
+本文首先揭示了一个问题：**没有预训练的、只在 benchmark 同分布数据训练的模型，表现反而好过大规模预训练模型**。此外，benchmark 中的环境实际上不能代表真机环境，因此 benchmark 分数不代表真机表现。由此，本文强调：只有在 OOD 基准和真机下，才能真正评测一个模型能力。
+![](./file-20260707170327994)
+
+对于本文构建的 RoboTwin-IF 和 RoboTwin-XE 基准，先在 RoboTwin 固定白色背景、无干扰物、固定光照/桌高数据集微调，然后在随机化场景下评估。任务指令也采用“未见”模板。
+
+以下均为 OOD 评测：
+- 在测试**语义理解和遵循**的 RoboTwin-IF 上显著优于 pi0.5（72.2 vs 49.6）。
+- 在测试**跨具身**的 RoboTwin-XE 上，仅在 ALOHA 上微调，可迁移到 ARX, UR5 等，SR相比 pi0.5 2-5 倍提升。并且，ee 格式下迁移效果明显好于 joint 格式。
+- 在测试**未见场景和任务**的多个基准（RoboTwin-Clean2Rand, EBench, LIBERO-Plus, RoboCasa）上达到 SOTA，包含上下文的版本表现更优。
+![](./file-20260707173112901)
+
+真机评测：
+- ID 和 OOD 的 Pick&Place 桌面任务。以 pi0.5 和 StarVLA 为 baseline，以 CobotMagic ALOHA 为平台。在 OOD 任务中，还引入了杂乱背景、干扰物体、随机化的目标物体、disco 灯光等。
+- 跨具身技能迁移。在 6K CobotMagic 和 130 ARX 上联合微调，动作采用 ee 格式，然后在 ARX 上测试 CobotMagic 数据中的任务，成功率 55%。在**w/o UnifiedSpace**（即动作标签简单拼接补零，不按物理意义对齐位置），或**w/o UnifiedEEF**（即按物理意义对齐维度位置，但 ee 坐标未投影到摄像头坐标）时，迁移几乎完全失败（7.5%，12.5%）。
+- RoboChallenge Table v1 测试，最后达到第 6 名。
+
+**消融实验**
+
+设计了非常全面的消融实验。
+
+1. Scalability
+	在任务级别随机采样，在不同规模的预训练数据集上训练，并在 OOD 验证集上评估。
+	![](./file-20260707213052223)
+	对齐动作维度和 ee 坐标系时，具有更明显的可扩展性。
+2. 提示词和上下文设计
+	不同于 X-VLA 提出的结论，本文发现：当自然语言文本足够丰富时，效果比 soft prompt 更好：![](./file-20260707213700314)
+	去噪步数和输入复杂程度有关，当输入信息更多时，为保证稳定需要相应增加去噪步数。
+3. Ego 数据，Human2Robot 数据和 VL 数据
+	在固定机器人与非机器人数据（Ego, Human2Robot）比例（7:3）情况下，非机器人数据带来明显性能提升。**H2R 数据仅仅来自 Ego 数据的合成**，但依然带来提升，说明了动作-视觉对齐增益。
+	VL 数据协同训练同样带来提升。
+4. 架构
+	尝试 3 种 attetntion 架构：![](./file-20260708112924451)
+	(1) VLM 与 DiT 共有 VL 输入，逐层各自进行 self attention，并特征融合；(2) VLM 最后一层 latent 输入 DiT ，DiT 进行 self attention，不融合；(3) 引入一组 query token 作为 DiT 输入，query，状态和动作 token 与 VLM 最后一层 latent 进行 cross attention。
+	使用 query 的架构 3 表现最好且计算成本最低。
+5. 后训练配方
+	![](./file-20260708113701878)
+	强调了**预训练数据协同训练**和**统一动作表示**的重要性。
+6. 统一 EEF 动作空间
+	![](./file-20260708114037697)
+	在统一 EEF 动作表示后， ee **观测位置**的相似性代表了**动作表示**的相似性，**零样本**迁移到新机体成为可能。
+
+**总结**
+
+Qwen-RobotManip 在扩展和对齐数据方面的工作挑战了现有的 VLA 研究范式。未使用任何专有数据，说明数据壁垒可能没有想象中高；全面的 benchmark 结果，说明多数 VLA 虽然使用各种新奇架构，但大多是单纯刷榜无法泛化。
+
+---
+
+## ICML 2026
+
+### LARA(2606.07100)
+
+*协同训练 VLA action latent 与 WAM latent 表征*
+![](./file-20260711144201657)
+
+VLA action expert 缺乏物理理解，存在跨具身 gap；IDM (latent action model, LAM) 仅依赖像素重建会编码冗余信息。本文尝试将 action expert 和 IDM 联合起来训练，以同时解决两者问题
+
+- LAM 是一个 VQ-VAE（IDM+FDM），输入一对观测帧 $(I_t, I_{t+C})$，输出一个离散化的 latent action $z_t^ϕ$，监督方式是 FDM 重建 $I_{t+C}$ 
+- VLA Policy 是一个 DiT，监督方式是预测动作 $A_{t}$ 
+- 添加**LARA对齐目标** $L_{LARA}$ ：提取 DiT latent $h_t^θ​$ ，用一个 MLP($f_ψ​$）投影，监督方式是对齐两个 latent action：
+
+$$L_{LARA}(\theta, \phi, \psi) = -\mathbb{E}_{A_t, \epsilon, \tau} [\text{CosSim}(z^{\phi}_t, f_{\psi}(h^{\theta}_t))]$$
+
+总 loss 是上述 3 种监督的加权。完整流程：首先对 LAM 预训练（互联网视频），然后 LARA 联合预训练（多种本体机器人数据），最后进行 LARA 后训练（目标任务）。实际上，LARA 不仅可以从头训练模型，还可以后训练任意 diffusion VLA。
+
+在 LIBERO, SimplerEnv, GR1-sim 和 G1-Real（真机）上测评。相比纯 BC（DiT-only）的普通 VLA，LARA pre-train + post-train(LARA-full)，以及 LARA post-train(GR00T-N1.6-LARA)均带来性能提升：
+![](./file-20260711152626926)
+
+相比仅预训练的 LAM，经过 LARA 对齐的 LAM latent 也得到改进。最佳实践是冻结 pretrained LAM 浅层，仅部分深层参与 LARA co-train。
+![](./file-20260711153435007)
+
+### Study of Latent Action Supervision for VLAs (2605.04678)
+
+*如何将 latent action 整合到 VLM backbone 中？*
+
+本文中 latent action 按照输入分类，均以 VQ-VAE 处理
+- 基于图像：将前后两帧**视觉观察** $o_t$ 和 $o_{t+\delta}$ 编码为 $z_{img}$ 以代表运动
+- 基于动作：将原始**本体动作**直接压缩成离散的词表 token
+
+使用 Qwen-VL-2B，采取标准的 多路摄像头+语言指令+本体状态 输入，以及一个 action head 生成 H 个动作，比较了 4 种监督策略：
+1. LA-Align: 基于图像，监督 VLM latent 与 latent action 对齐，采用相似度 loss
+2. LA-Direct: 基于图像，VLM 直接生成 latent action token，采用 NTP loss
+3. LA-Cond: 基于图像，VLM 在同一个序列里先生成 latent action token（同上），然后生成若干“动作表示”，一起输入 action head
+4. LA-Tok: 基于动作，VLM 直接生成 latent action token，采用 NTP loss
+均使用 MSE loss 监督最终生成的动作。
+
+不进行预训练，在 LIBERO、RoboTwin、真机上微调并评测，结论如下：
+- 基于图像的 latent action 在长程推理、场景泛化上更有效，而基于动作的 latent action 在运动复杂任务（计时、双臂协调）中更有效
+- **离散 token 监督(NTP loss)比连续 latent (MSE loss)更有效**
+- 通过结构化的 latent space，模型可以具有更强泛化性，避免对 OOD 任务“负迁移”。
+
+### LangForce(2601.15197)
+
+*保留 VLA 的语义理解能力*
+
+通常，一个 VLA 希望将视觉状态 $v$ 和语言指令 $\ell$ 映射到动作 $a$。然而，目前的机器人操作数据中，**特定视觉观察总对应特定指令**：例如，开着的柜子总是和“关上柜子”的指令同时出现。这意味着，$l$ 中包含的额外信息较少，模型在训练中不再关注 $l$，只需关注 $v$，在 OOD setting 下导致性能退化。
+
+本文提出使用以下 loss：$$L_{LLR} = \log \frac{\pi(a | v, \ell)}{p(a | v)} = \log p(\ell | a, v) - \log p(\ell | v)$$ 来使得语言的增益最大化，充分提取语言中的信息。
+
+采用**带有 causal mask** 的 pi-like VLA 架构，通过调整 token 顺序来分别计算先验和后验概率：
+- $p(a | v)$: `[vision, action query, language]`
+- $\pi(a | v, \ell)$: `[vision, language, action query]`
+
+训练时，并行处理两个分支，计算总 loss 为 IR 和 LLR(Log-likelihood Ratio) 加权：
+
+$$
+\begin{gather}
+L_{total} = (1 - \lambda)L_{FM}(\psi; H_{post\_Q}) + \lambda L_{FM}(\psi; H_{prior\_Q}) - \beta L_{LLR} \\
+\\
+L_{LLR} = \log p(\ell | v, H_{prior\_Q}) - \text{StopGrad}(\log p(\ell | v))
+\end{gather}
+$$ 
+注意 $\log p(l|v)$ 需要截断梯度，避免模型退化。
+
+在评估中，实现 OOD 泛化，在语义遵循任务 LIBERO-Goal（同一场景对应不同指令）中显著更优。直接测试 VLM 的推理能力，发现纯 IL 训练下 VLM 无法生成正常文本，而使用 LLR 辅助训练保留了推理和生成文本的能力。
+
+### Learning Latent Action World Models ItW(2601.05230)
+
+*在大规模 in the wild 数据上训练 LAM*
+
+给定相邻两帧，我们希望 LAM 能够输出一个 latent action，进而将这个动作标签用于 world model 训练。但是，目前的 LAM 往往在干净、分布狭窄的数据集上训练。本文尝试了在大规模数据集 YouTubeTemporal-1B(自然视频) 上训练 LAM，并探索了数据正则化的策略。
+
+以 V-JEPA-2L 作为 vision encoder，ViT-L 初始化作为 world model，训练 IDM（即 latent action model）。训练目标是最小化预测未来状态与真实未来状态之间的 L1 重构误差：$$\mathcal{L} = ||p_\psi(s_{0:t}, z_t) - s_{t+1}||_1 + \mathcal{L}_z(z_t)$$ 其中 $p_\psi$ 是世界模型，$z_t$ 是潜在动作，$\mathcal{L}_z(z_t)$ 是一个正则化项，用于约束潜在动作的信息内容。
+
+设计了 3 种正则化：
+- Sparsity：方差-协方差-均值(VCM)正则化；
+- Noisy：类似 VAE，使得 latent action 分布逼近正态分布；
+- Discrete：VQ 量化，学习一个离散化动作 codebook
+
+实验结果：
+- 在机器人操作和导航任务上评估，上述 LAM-world model 的性能,与直接在特定数据上训练的 world model(V-JEPA2-AC) 表现相近;
+- Sparsity 和 Noisy 方法表现远好于离散化方法；
+- 在 in the wild 数据上训练实现**本体无关**性，latent action 可以跨本体迁移，如人类走路迁移到小球飞行。
+
+### Action Space Design for Robotic(2602.23408)
+
+*机器人应该在什么动作空间下学习？*
+
+![](./file-20260729214026458)
+
+对于使用机器人机械臂的动作表示，有 2 个常见的分类维度：
+- 关节 / 任务：直接控制关节角(joint)，还是控制末端执行器(eef)位移；
+- 绝对量 / 增量：每个时间步，预测绝对量(Abs)，还是预测相对上一状态的增量(Delta).
+
+基于 RoboTwin 仿真以及真机，在 Agilex 和 AirBot 两种机型、ACT / Diffusion / $\pi_{0}$
+3 种策略上进行实验。
+![](./file-20260729220309047)
+（Cross embodiment：将两种机型数据**混合训练**，然后分别测试；Transfer Learning：对 $\pi_{0}$ **分别**用两种机型数据微调，并测试）
+
+- 在所有情况下，Delta 比 Abs 表现更好；
+- Joint 在单个机体下表现更优，但有可能无法迁移；EEF 在跨机体训练和迁移上更优。
+
+本文结论不算新颖，符合直觉。在已有设置内实验充分。不过，没有探索大规模预训练/更多机体/混合动作表示下的情况。尽管 Delta 相比 Abs 较优很符合直觉，然而近期 SOTA VLA 仍有多数使用 Abs，本文也没有给出很好的解释。
+
+---
+## Blogs
+### how to be good at research
+
+[原文](https://x.com/i/status/2064686372737454155)
+
+来自 Anthropics 年轻研究员 vivek，关于如何做好 ai 研究。
+
+- **taste as a muscle**
+	除了学习方向/方法本身，还应该理解其背后的逻辑：为什么关注某个方向？*期望*发现什么？什么信号意味着成功/失败？某个实验/方法的*预期*结果是什么？
+- **upgrade your inputs**
+	阅读论文原文，尤其是附录，而非讨论贴。
+- **write everything down**
+	首先要避免欺骗的人是自己，因为自己是最容易被欺骗的目标。做好记录：假设、设置、*预期*、结果、更新后的观点。
+- **find your people**
+	保持开放、保持交流。“打断”能够带来真正需要的信息。
+
+### Understanding and Cultivating Research Taste
+
+[原文](https://www.alignmentforum.org/posts/Ldrss6o3tiKT6NdMm/my-research-process-understanding-and-cultivating-research)
+
+来自 DeepMind 可解释性团队 Neel Nanda，同样关于 research taste。
+
+- **Understanding Taste**
+	一套直觉和判断力，指导研究者做出决策。
+	选择：问题的可处理性、趣味性
+	探索：预判哪些实验能带来最大洞见；识别异常和噪声；判断*深入或放弃*的时机
+	理解：设计实验；判断理论的合理性和解释力；识别*关键*因素和*混淆*因素
+	沟通和提炼：提炼核心且易懂的论点；构建吸引人且真实的叙述
+- **Cultivating Taste**
+	如何快速训练一个 taste 模型？
+	从每个数据中学习更多：不要止于成功/失败二元反馈，对实验或阶段进行反思
+	利用导师：预测他人的建议，理解他人*如何推理*
+	利用论文：批判性审视论文，预测论文会提的方法/结果/局限性
+	合作与讨论：阐述自己的思路，了解别人的思路，相互批判揭示错误。
+
+vivek 和 Nanda 都强调，taste 除了在自然过程（实验、阅读）中形成，还需要有意识地进行**预测/重建**：预测实验结果、重建思考框架。
+
+### 读论文 Prompt 总结
+
+[原文](https://xhslink.com/o/6XFS2HHAQVZ)及[Github仓库](https://github.com/FeijiangHan/PaperForge/)
+
+除了常规的“背景-问题-动机-实验-启发”的读论文结构，本文还强调了以下几点：
+
+- 在正式讲方法之前，先重建作者可能的思考路径。不要使用论文自己的贡献作为前提，只使用之前已有的背景、失败模式、经验观察和相关工作。思考和模拟作者本人的思路和受到的 inspiration 以及 intuition，引导我理解为什么作者可以基于已有知识想到这篇论文的 idea。
+- 这篇论文最脆弱的假设是什么？如果我反对它，我会怎么设计反例？
+- 如果我有 1 周时间，能做一个最小复现实验，应该验证它的哪一点？
+
+这三个视角的价值在于，将一些比较抽象的“taste”分解成情景化的问题。重建思考路径 -> 识别关键因素；最脆弱假设 -> 批判性阅读，判断合理性；最小复现实验 -> 识别噪声
+
+### Notes on the Industry Job Search
+
+[原文](https://alisawuffles.github.io/blog/job-search/)
+
+来自刚入职 OpenAI 的 PhD Alisa Liu，分享了其求职经验以及一系列学习资源。
+
+值得注意的是，她强调了更基础的技能：CS336 课程，LeetCode 75，Neetcode Blind 75 等，并做了非常详细的 LLM 数学、架构、训推 infra、后训练方面的[笔记](https://alisawuffles.notion.site/alisa-s-book-of-llms)。
+
+### Lightweight Guide to GRPO and RL 
+
+[原文](https://gitlostmurali.com/blog/grpo-intro/)
+
+一篇适合完全不懂 RL 的初学者理解 GRPO 和 RL 的文章。
+
+GRPO 的总公式如下：
+![](./file-20260630081053760)
+
+#### 核心
+
+首先看一个简化版本：
+$$\mathcal{L}_{GRPO} = \frac{1}{G} \sum_{i=1}^{G} \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \pi_\theta(o_{i,t}|q, o_{i,<t}) \hat{A}_{i,t} $$
+
+转换成代码，就是一个两层 for 循环，遍历每个回答的每个 token，来计算 token loss：
+```python
+for each_generated_answer_i in generated_answers: # G in the equation
+    advantage = calculate_advantage(each_generated_answer_i)
+    for each_token_o_t in each_generated_answer_i: # |o_i| in the equation
+        token_loss = pi_theta(each_token_o_t) * advantage
+
+    loss_of_each_answer = sum(tokens_loss_in_answer_i) / len(each_generated_answer_i)
+
+final_loss = sum(loss_of_all_answers) / len (generated_answers) # G in the equation
+```
+
+其中，advantage 会按照同一组内的**相对正确性**给出：
+![](./file-20260630082246732)
+
+#### 重要性采样
+
+上述简化版本的问题在于，在 Off-Policy Training 上，**同一个模型**计算出的 loss，会在**变化的模型**上更新梯度。在梯度更新的第 10 步，梯度计算依然用的是开始更新前的模型生成的答案。这会导致梯度偏差越来越大训练不稳定。
+
+引入**重要性采样**比率：
+$$token\_loss = \frac{\pi_\theta(o_{i,t}|q, o_{i,<t})}{\pi_{\theta_{old}}(o_{i,t}|q, o_{i,<t})} \times \hat{A}_{i,t}$$
+- `> 1`：当前模型更偏向该动作->放大梯度
+- `< 1`：当前模型更**不**偏向该动作->缩小梯度
+
+为了避免比率过于极端导致不稳定，再增加一项安全机制 $ratio_{clipped} = \text{clip}(ratio, 1-\varepsilon, 1+\varepsilon)$，一般取 $\varepsilon = 0.2$，最后结果如下：
+$$\mathcal{L}_{GRPO} = \frac{1}{G} \sum_{i=1}^{G} \frac{1}{|o_i|} \sum_{t=1}^{|o_i|} \min\left(ratio_{i,t} \times \hat{A}_{i,t}, \text{clip}(ratio_{i,t}, 1-\varepsilon, 1+\varepsilon) \times \hat{A}_{i,t}\right)$$
+
+#### KL 散度
+
+KL 散度现在已经基本被弃用，这是因为 clip 机制已经比较好地替代了它。
+
+### SFT, RL, OPD Through a Distributional Lens
+
+[原文](https://nrehiew.github.io/blog/sft_rl_opd/)
+
+制作精美的博客，从分布角度考虑用 SFT, RL, OPD 来训练 LLM 时的区别，并进行实验来验证。
+
+- SFT: 当前模型代表一种分布，SFT 数据集代表另一种分布。SFT 对模型初始分布要求低，适合不考虑初始策略的“冷启动”，相应的，更容易造成灾难性遗忘；
+- 在线RL: 策略自身生成样本，根据奖励函数评分后进行梯度更新。将策略分布向某个特定方向移动。
+- OPD: 介于 SFT 和 RL 之间。与 SFT 类似，学生被训练匹配另一个已有分布；与 RL 类似，数据来自学生本身。粗略地说，OPD 类似于 RL，但它不是根据 Advantage 来加权，而是使用学生和教师之间的对数比率来加权。
+
+作者使用 RL/SFT 训练的教师，在 LiveCodeBench 上评估 OPD 微调后的模型。OPD 学生表现都略优于 RL 教师，显著由于 SFT 教师，仅表现出轻微的遗忘，且遗忘程度低于教师。
+
+为什么 RL 遗忘程度更低？一些解释：
+1. SFT （交叉熵损失）是正向 KL，RL 被认为是反向 KL 。![](./file-20260702221401267)
+2. RL 实现了数据相关的正则化。当组内奖励方差较大（模型存在不确定性）时，更新幅度自然会降低；对于持续产生高奖励的样本更新幅度会更大。
+3. RL 数据更新更稀疏。当减少 SFT 和 RL 的参数更新数量时，RL 的性能下降更快，说明 RL 的更新具有更少冗余。
+4. RL 以策略为单位来拟合。每一轮的目标是与当前策略最近的最优策略（Optimal Policies）。![](./file-20260702225819659)
+
+在开源 LLM 的实践中（GLM 5, DeepSeek V4）大多采用 预训练-SFT-RL-OPD 流程。对于数学/编程任务，RL 往往更合适；对于创意写作或知识密集行任务，更适合自蒸馏或蒸馏式的方法（奖励噪声更大）。
+
+### Software, from First Principles
+
+[原文](https://fazamhd.com/mental-models/software/)
+
+![](./file-20260704143345371)
+
+本文从机械计算器开始，讲到冯·诺伊曼架构，再到互联网和云。计算能力的提升，带动编程的不断抽象化：设计逻辑电路 -> 设计加法电路 -> 可编程的计算机 -> 软件代替手工管理硬件 -> 用英语编写软件 -> 软件与硬件分离，得以规模分发。
+
+晶体管源自量子物理学家，编译器源自汇编语言程序员，操作系统源自理解处理器和内存的程序员。尽管抽象层不断产生，每个新的抽象层都是由看透其底层原理的人构建的。
+
+创新总是在拓展边界，很少减轻工作负担。更高效的计算能力让我们剩下资源，却用于构建更宏大的系统。随着 ai agent 降低代码生成成本，我们只会编写更多软件，更多原型。
+
+### The Rise of World Models
+
+[原文](https://developer.nvidia.com/blog/pretrained-to-imagine-fine-tuned-to-act-the-rise-of-world-action-models)
+
+在更长的时间轴上考查了 WAM 的兴起和未来，不乏对其批判的思考。尽管 DreamZero 以来有关 WAM 的总结层出不穷，但站在目前这个时间节点上，WAM 的研究值得被再次反思。此外，本文也更适合一个该领域 beginner 快速了解。
+
+**WAM 的核心假设**
+
+以下 3 点实际上**并非结论**，但是目前已经得到一些支持：
+- 预测未来 <-> 生成行动：视频预测+逆动力学比直接生成动作更容易；
+- 视频预训练能够建立语言-物理联系；
+- 视频数据防止策略过拟合
+基于这三点，WAM 相比 VLA 有架构的优势。
+
+**为什么 WAM 在现在兴起**
+
+实际上，早在 2023 年就有 [UniPi](https://proceedings.neurips.cc/paper_files/paper/2023/file/1d5b9233ad716a43be5c0d3023cb82d0-Paper-Conference.pdf) 提出了 WAM 的类似架构，但 WAM 真正成为热点要等到 25 年底。作者认为，WAM 的兴起要归功于**工具的成熟**：Wan 和 Cosmos 提供了开源、高质量的视频模型，取代早期基于 CNN 的架构，拥有更优的架构和预训练数据；DiT (Diffusion Policy) 取代了早期的 MLP；视频预测 backbone 的架构和 infra 更成熟，允许研究者进行高效微调。
+
+**第 3/4 条路**
+
+如果算力限制放宽，VLA/WAM 可能会进一步融合。最近的 Motus, BagelVLA, Pi0.7 都试图同时融入语言和视频模块。
+
+数据足够丰富时，另一条路是"robot-first foundation model"，被 GEN-1 等工作所强调：机器人模型应该**从头训练**，将交互和动作作为预训练核心。
+
+### What will be left for us to work on?
+
+[原文](https://www.normaltech.ai/p/what-will-be-left-for-us-to-work)
+
+普林斯顿教授 Arvind Narayanan 在 ICML2026 上的讲座。Narayanan 提出 "AI as Normal Technology"，即 AI 像电力或互联网一样，是一种“常规”的技术，其进步不依赖激进干预或技术突破，且不会成为未来的决定性因素。
+
+**The world is watching how we adapt**
+
+“我们一直在撰写文章，探讨律师或记者要如何适应 AI。但讽刺的是，‘如何适应’这个问题首先触及了我们这个群体。”
+
+计算机行业从业者要首先回答 AI 对社会的适应问题：AI 会取代人的特长，还是增强我们的天赋？如今这个问题一极其现实，每个人都需要选择一个阵营，要么在被取代之前尽快积累财富，要么培养和 AI 互补的能力。
+
+作者在此重申"AI as Normal Technology"，相信 AI 不会取代人类，而是成为像电力一样的，具有变革性但依然在常规框架内的技术。
+
+软件工程现已被大幅自动化。然而，工程师开始意识到写代码不一定是瓶颈。**执行层**确实被有效压缩，但**决策**和**交付**仍然是非标准化的、信息丰富的，还没有被压缩。自动取款机让银行大量开设分行，这些分行仍然需要柜员；医学影像 AI 发展，而放射科医生就业人数实际上有所增长。当任务更快、更便宜时，需求就会相应增加。
+
+**AI 发展目标的 4 种维度**
+
+AGI 这个词被冠以各种解读，本文想要分解如下：能够不断自我改进；具有与人类相似的基础能力；能够执行一系列有价值任务；"Super Intelligence"，即超越人类的智能。
+
+作者认为前两种尚未到来：目前 AI 既不能代替研究员改进自身，也不能具有类似人类的持续学习和创造能力；而第 3 种已经到来。以电力作为类比，电力虽然经过长时间发展才真正产生经济效益，但是**瓶颈不在电机（上游），而在工厂结构的转型（下游）**。同理，AI 本身已经足以产生经济价值，只要下游做出适当的适应，即使需要几十年。
+
+**AI 领域的转变**
+
+![](./file-20260716232322837)
+
+最原始的船都是划艇，依靠人类体力前进。现代船舶移动交给发动机完成，但同时拥有非常复杂的控制面板，需要更专业的水手。
+
+在赛艇运动中，体能曾被推崇，而如今水手们无需强壮体魄。同样，在当今的人工智能领域，对模型和系统的深入技术理解仍然具有极高的价值，被认为是酷炫的、最重要的，也是最有价值的东西。但作者认为，未来这些技术理解的重要性将会降低，而运用判断力以及模糊概念将会变得更为重要——具体体现在**评估**会更加重要
+
+### 22580: From GPT2 to Kimi3, Explained
+
+[原文](https://x.com/waterloo_intern/status/2081762065392541951?s=20)
+
+来自推理供应商 Baseten 工程师，讲解了从 GPT2 开始 LLM attention 的演变。从 GPT-2 到 Kimi K3，模型参数量扩大了 22580 倍。
+
+**GPT-2**
+```python
+class Block(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.ln_1 = LayerNorm(config.n_embd, bias=config.bias)
+        self.attn = CausalSelfAttention(config)
+        self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
+        self.mlp = MLP(config)
+
+    def forward(self, x):
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.mlp(self.ln_2(x))
+        return x
+
+tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
+pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
+x = self.transformer.drop(tok_emb + pos_emb)
+for block in self.transformer.h:
+    x = block(x)
+x = self.transformer.ln_f(x)
+logits = self.lm_head(x)
+return logits
+```
+
+GPT-2 的 attention 即是最经典的自注意力，使用 KV Cache 避免每次前向都重新计算所有 K 和 V 值。在上下文长度 1024 的情况下，模型参数量：
+```python
+vocab_size: int = 50304
+n_layer: int = 12
+n_head: int = 12
+n_embd: int = 768
+mlp_hiddendim: int = 3072
+context_len: int = 1034
+```
+Embedding 层：
+- Token Embeddings: 将 50,304 个词映射到 768 维空间，$Parameter=50,304\times 768=38,633,472$
+- Position Embeddings: 给 1,024 个位置分别赋予一个 768 维的向量， $Parameter=1,024\times 768=786,432$
+
+单个 Transformer Block：
+- Self Attention: QKV weights + bias, 输出投影 weights + bias， $Parameter = 3 \times (768 \times 768 + 768) + (768 \times 768 + 768) = 2,362,368$
+- FFN: 两个全连接层 weights + bias，$Parameter = (768 \times 3072 + 3072) + (3072 \times 768 + 768) = 4,722,432$
+- Layer Norm: attention 之前、MLP 之后各有一个，$Parameter = 2 \times (768 \times 2) = 3,072$
+
+最终 Layer Norm: $Parameter = 768 \times 2 = 1536$
+
+总计：$TotalParameter = Embedding + 12 \times Transformer + FinalLayerNorm = 124,475,904$，即 124M 参数量。
+
+**Linear Attention**
+
+传统的注意力计算公式为 $\text{Softmax}(QK^T)V$。这意味着必须先让 $Q$ 和 $K$ 矩阵相乘，**生成一个大小为 $N \times N$ 注意力矩阵**，其计算和显存复杂度为 $O(N^2)$。
+
+Linear Attention 通过**结合律**改变了计算顺序。线性注意力不再使用 Softmax 函数，而是分别对 Q 和 K 应用一个非负的特征映射（如 $\text{ELU}+1$ 激活函数），记为 $\phi(Q)$ 和 $\phi(K)$。公式转化为：$$\text{Attention}(Q,K,V)=\phi (Q)\left(\phi (K)^{T}V\right)$$
+通过先计算 $\phi(K)^T V$，可以将不断增长的 KV Cache 折叠成一个**固定大小**的 $D \times D$ 状态矩阵：$$S_i = \sum_{j=1}^{i} \phi(k_j) v_j^T = S_{i-1} + \phi(k_i) v_i^T$$ 之后，再让 $\phi(Q)$ 乘以这个状态矩阵。
+
+这里需要强调 KV Cache 和 Linear Attention 的区别：
+
+|                      | 缓存（状态）                   | 形状                   | 单步计算复杂度 | 空间复杂度  |
+| -------------------- | ------------------------ | -------------------- | ------- | ------ |
+| (full attn) KV Cache | $K_{j}, V_{j}$（不能相乘）     | $2\times N \times D$ | $O(N)$  | $O(N)$ |
+| linear attention     | $\sum {\phi(k_j) v_j^T}$ | $D \times D$         | $O(1)$  | $O(1)$ |
+长上下文下，linear attention 具有显著时间和空间优势，然而表现也会明显退化。
+
+**(Gated) DeltaNet**
+
+DeltaNet 是使用 Delta 规则来更新 linear attn 状态的 transformer，在保持 $O(N)$ 复杂度前提下保持记忆能力。
+
+1. 计算预测值： $\hat{v}_{t}=W_{t-1}k_{t}$
+2. 计算误差Delta： $e_{t}=v_{t}-W_{t-1}k_{t}$
+3. 计算学习率（门控系数）： $\beta _{t}=\sigma (\text{Linear}(x_{t}))$
+4. 状态矩阵更新：$W_{t}=W_{t-1}+\beta _{t}(e_{t}k_{t}^{T})$
+
+这相当于有控制地向状态中添加信息，避免了普通 linear attn 的信息模糊问题。
+
+在大规模训练中，为了实现并行，会将序列切成若干块，先并行、独立地计算 token-level KV，以及**块内变化量**，然后以块为单位从前往后完整计算状态 $W$。
+
+DeltaNet 是累加性的，虽然能通过减去误差来修正状态，但没有一种机制能让旧的历史信息随时间主动清空。Gated DeltaNet 在公式中增加了一个**衰减系数**。
+- 标准 DeltaNet 更新：$$S_{t}=S_{t-1}+\beta _{t}(v_{t}-S_{t-1}k_{t})k_{t}^{T}$$
+- Gated DeltaNet 更新：$$\begin{gather} S_{t}=\underbrace{\alpha _{t}\odot S_{t-1}}_{\text{主动遗忘旧记忆}}+\underbrace{\beta _{t}(v_{t}-S_{t-1}k_{t})k_{t}^{T}}_{\text{基于误差写入新记忆}} \\ \beta _{t}=\frac{\text{Sigmoid}(W_{\beta }x_{t}+b_{\beta })}{\|k_{t}\|{}_{2}^{2}} \\ \alpha _{t}=\exp (\text{Softplus}(W_{\Delta }x_{t}+b_{\Delta })\cdot A) \\ \end{gather}$$
+
+**Kimi Linear(KDA) & K3**
+
+Qwen 3.5 和 Kimi K3 均使用 full attn + linear attn 混合的做法，3:1 混合 Gated DeltaNet 以及 Gated Full Attn。总体架构如下：
+![](./file-20260729161531170)
+
+KDA 中使用 MLA 代替传统自注意力，用 MoE 代替 MLP，并且使用通道级的 $\alpha$ Gated DeltaNet 遗忘系数。
+
+Kimi K3 在 Kimi Linear 基础上还使用了 Latent MoE 和 AttnRes。AttnRes 允许每一层在残差连接处选择性地访问之前层的输出。
+
+### 其他
+
+- [ML Job Interviews: The Ultimate Guide](https://silviasapora.github.io/blog/ml-interviews.html) 来自一名面试结果极佳的求职者
+- [AI2027](https://ai-2027.com/) 在 2025 年 4 月预测的 AI 3 年发展（举手投足就是编）
+- [The Most Human Technology](https://x.com/illscience/status/2076714595994206358?s=20) a16z 有关生成式 AI 的乐观设想
+- [How to Read Mathematics?](https://www.alphaxiv.org/abs/2607.24136) 学习数学的指南
