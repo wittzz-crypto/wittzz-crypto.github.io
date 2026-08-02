@@ -54,7 +54,7 @@ export const aboutPageData: AboutPageData = {
       {
         platform: 'GitHub',
         icon: 'github',
-        link: 'https://github.com/wittzz-crypto'
+        link: 'https://github.com/wittzz0'
       }
     ]
   }

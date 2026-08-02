@@ -17,7 +17,7 @@ heroImage: { src: './va_heroimg.jpg', color: '#9698C1' }
 - 难以进行复杂物理交互，或物理推理；
 - 难以处理**长**任务，容易累计误差。
 
-![fig0](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260223200023.png?raw=true)
+![](./Pasted%20image%2020260223200023.png)
 而视频模态的学习**动态**数据，具备对物理因果的一定理解。本文所指的Video Action Model，即使用视频生成模型作为backbone一部分的一类具身模型。
 
 ## 演进路线
@@ -26,13 +26,13 @@ heroImage: { src: './va_heroimg.jpg', color: '#9698C1' }
 
 mimic-video: 先用冻结或微调的视频生成DiT，预测**部分去噪**的未来视频，逆动力学DiT (IDM) 以**部分去噪的视频**+proprio为条件，并对视频DiT进行cross-attention，恢复出低层机器人控制指令。
 
-![fig1](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260223213610.png?raw=true)
+![](./Pasted%20image%2020260223213610.png)
 Video Policy: video U-Net输入多模态信息，每个去噪步抽取隐藏层，输入action U-Net回归为动作
 
 ### 多模态联合预测
 
 代表：Unified World Models (Toyota Research Institute, 2504.02792), Cosmos Policy (NVIDIA, 2601.16163), LDA-1B (PKU, 2602.12215v1)
-![fig2](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260223195546.png?raw=true)
+![](./Pasted%20image%2020260223195546.png)
 为了提高推理速度，同时进一步对齐多模态信号，将动作、视频放在同一个序列中预测。Cosmos Policy提出一种极简的联合预测方案，对视频模型的架构**不做改动**。机器人动作、本体感受状态、累计奖励全部编码为视频模型的潜在帧(Latent Frames)。通过单一的去噪分数目标，让模型同时预测上述模态。
 
 LingBot-VA论文中比较了Co-training（联合预测）与VGM+动作头策略的区别。在Robotwin2.0 Easy中使用Pretrained LingBot-VA / Wan2.2-5B+动作头，经过相同后训练（3k步）的平均成功率92.9% / 80.6%，在更长任务下差距更大。（需要注意这个比较不算公平，两个模型可能注意力机制/观测/训练量不同）
@@ -44,7 +44,7 @@ LingBot-VA论文中比较了Co-training（联合预测）与VGM+动作头策略�
 
 之前的架构都采用**全局同步**去噪，即一次生成完整视频+完整动作。在采取联合预测的基础上，此类模型：1. 自回归架构，每次只生成一小段视频预测+一小段action chunk，并将生成/观测内容追加到condition序列中；2. 用Causal Attention代替原来视频模型中的双向Attention，适应自回归要求。
 
-![fig3](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260223220545.png?raw=true)
+![](./Pasted%20image%2020260223220545.png)
 
 以LingBot-VA为例：
 - 输入：视觉用 **causal video** VAE 压缩观测​；动作向量经 MLP 投影成 token embedding，与视觉 token 对齐到同一序列
@@ -61,24 +61,24 @@ DreamZero中相对公平地比较了AR和双向架构。虽然任务进展相似
 
 ## 最新模型概览
 
-来自2512~2602的工作
+*来自2512~2602的工作*
 
 ### LingBot-VA: 推理-执行异步
 
-![fig4](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224091716.png?raw=true)
+![](./Pasted%20image%2020260224091716.png)
 
 - Sync Paradigm: 模型生成时机器人闲置，机器人执行时模型闲置；
 - Async Paradigm: 利用视频生成模型**预测未来**的能力，可以用**预测的观测**暂时代替实际观测，让模型始终处于运行状态；
 - Naive Async: 只使用预测观测，容易导致开环漂移，即预测没有修正，误差逐渐累积；
 - FDM-grounded Async: 学习一个FDM模块，预测 $z_{t+1}:z_{t+K}$ 视觉状态作为暂时的Cache，然后主模型预测 $t+K+1:t+2K$ 的视觉和动作。
-![fig](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224083140.png?raw=true)
+![](./Pasted%20image%2020260224083140.png)
 
 相比串行方法，取得相近的成功率，但任务完成速度快了2X。
 ### DreamZero: 推理加速、zero-shot、长尾数据
 
-![fig5](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224103726.png?raw=true)
+![](./Pasted%20image%2020260224103726.png)
 **模型加速**方面，DreamZero基于Wan2.1-14B自回归DiT构建。为了达到理想控制频率，使用CFG并行计算、NVFP4混合精度量化进行系统加速。为进一步提速，提出DreamZero-Flash噪声调度：
-![fig6](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224102427.png?raw=true)
+![](./Pasted%20image%2020260224102427.png)
 训练时强制视频的噪声时间步服从Beta(7,1) 的偏态分布，而动作时间步保持均匀分布，即要求模型从视频生成的早期即重建出动作。总体而言，实现了38倍推理加速，达到7Hz高频闭环控制。
 
 **数据策略**方面，DreamZero强调避免一般数据集中**同一任务重复演示**。在AgiBot G1上收集500小时数据，覆盖了22个现实场景，单集平均长达4.4分钟，并包含42个子任务。
@@ -93,7 +93,7 @@ DreamZero展现出更强的**zero-shot/few-shot**能力。在**没有动作标�
 
 ### LDA-1B: VLM+DINO Backbone，异构数据
 
-![fig7](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260225154842.png?raw=true)
+![](./Pasted%20image%2020260225154842.png)
 和其他VA不同，**不使用VGM**为Backbone，意在避免低效的像素级计算，同时又可以使用多样异构的数据。
 
 - 输入：观测、语言、时间步、Task Embedding (Forward Dynamics, Inverse Dynamics, Policy, Visual Planning共四种)；
@@ -105,11 +105,11 @@ DreamZero展现出更强的**zero-shot/few-shot**能力。在**没有动作标�
 
 ### Motus (2512.13030): MoT、光流提取动作
 
-![fig8](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224210043.png?raw=true)
+![](./Pasted%20image%2020260224210043.png)
 
 Motus保留三个Transformer: VLM (Qwen2-VL), VGM (Wan 2.2 5B), Action Expert (DiT，从头训练)。三者处理不同输入，但使用特殊的注意力层共享token。借鉴UniDiffuser，给视频/动作分配不同噪声水平和时间步，同一模型可灵活切换VLA/世界模型模式，保持VLM的语义推理能力。
 
-![fig9](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/assets/Pasted%20image%2020260224210152.png?raw=true)
+![](./Pasted%20image%2020260224210152.png)
 **训练数据**方面，利用大量无标签数据，提取潜在动作 (Latent Actions) 训练。
 
 1. 输入视频帧，用光流估计算法 (DPFlow) 计算像素运动 (RGB)，再用自编码器 (DC-AE)将光流图压缩 (4个token，每个512维)，最后经过一个轻量编码器转换成14维Latent Action（和动作token形状相同，便于对齐损失函数）。

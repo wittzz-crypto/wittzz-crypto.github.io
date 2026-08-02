@@ -25,7 +25,7 @@ X-VLA是一个VLA模型，以VLM(Florence) + DiT为backbone，参数量0.9B，�
 
 # 实验1：不同cross-embodiment方法尝试 (Chap. 3)
 
-![fig_approach](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/content/blog/xvla/Pasted%20image%2020260221182605.png?raw=true)
+![](./Pasted%20image%2020260221182605.png)
 提到四种cross-embodiment策略：
 
 1. 现有（pi_0.5）：在VLA输出末端添加一个投影头，对每个机器构型学习一个投影头
@@ -61,12 +61,12 @@ X-VLA是一个VLA模型，以VLM(Florence) + DiT为backbone，参数量0.9B，�
 - **对动作下采样**。用30个点表示未来4秒动作轨迹，避免数据中人类的随机性带来的噪声。
 - **平衡采样**。观察到：稳定训练需要精心设计的数据打乱pipeline。不仅在不同领域之间打乱样本，还在每个领域内部也打乱，缓解分布偏差。
 
-![fig_opti](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/content/blog/xvla/Pasted%20image%2020260222093855.png?raw=true)
+![fig_opti](./Pasted%20image%2020260222093855.png)
 该表展示了上面优化的实际效果，PT表示pretraining，AD表示adaptation。
 
 # 实验2：Scalable实验（Chap. 5.1）
 
-![fig_scale](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/content/blog/xvla/Pasted%20image%2020260222100146.png?raw=true)
+![fig_scale](./Pasted%20image%2020260222100146.png)
 在（1）模型大小（2）数据多样性（3）数据量三个维度上都显示出缩放趋势。
 
 # 实验3：适应性实验（Chap. 5.2）
@@ -75,11 +75,11 @@ X-VLA是一个VLA模型，以VLM(Florence) + DiT为backbone，参数量0.9B，�
 - 本文构建了一个布料折叠数据集Soft-Fold(1.2k)，与进行微调的pi_0-base、从头训练的ACT进行比较，同样表现更佳；
 - **未见任务下的适应性**。在AIRBOT上的一个**未见**真实世界布料抓取**任务**下，LoRA微调1%参数即可达到高成功率，好于pi_0；
 - **未见构型下的适应性**。在Libero-Goal数据集下，用50/10条任务微调，即可适应新新的机器人形态，50/10条的效果相当。
-![fig_unseen](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/content/blog/xvla/Pasted%20image%2020260222105200.png?raw=true)
+![fig_unseen](./Pasted%20image%2020260222105200.png)
 
 # 实验4：关于Soft Prompt（Chap. 5.3）
 
-![fig_softprom](https://github.com/wittzz-crypto/wittzz-crypto.github.io/blob/main/src/content/blog/xvla/Pasted%20image%2020260222184731.png?raw=true)
+![fig_softprom](./Pasted%20image%2020260222184731.png)
 
 - Figure 8: 对相似构型对应的Soft Prompt分布有一定重叠；
 - Figure 9: 将UR5对应的Soft Prompt，提供给**相似构型、未见**机器人（WidowX），成功率高于使用随机Prompt，接近经过微调的Soft Prompt。
