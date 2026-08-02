@@ -278,6 +278,33 @@ $$
 
 本文结论不算新颖，符合直觉。在已有设置内实验充分。不过，没有探索大规模预训练/更多机体/混合动作表示下的情况。尽管 Delta 相比 Abs 较优很符合直觉，然而近期 SOTA VLA 仍有多数使用 Abs，本文也没有给出很好的解释。
 
+--- 
+
+## 其他论文
+
+### PhysisForcing(2606.28128)
+
+*将物理监督注入 DiT 训练*
+
+目前针对视频模型强化物理真实性的后训练，或是使用基于偏好的对齐，反馈过于稀疏；或是基于全局几何（如光流、深度），反馈过于低维，缺少语义信息。
+
+本文认为，物理对齐应该是**局部**、**分层**的。既要在像素（点轨迹）上对齐，也要在语义（“抓取”状态）上对齐。具体来说分为 3 步：
+
+1. 识别监督区域
+	使用 CoTracker3 提取像素运动轨迹，DepthAnything2 提取第一帧深度图。对于每个点，计算前景和运动的加权，选择**在前景、运动幅度大**的轨迹，生成掩码 $\mathbf{x}$ 作为监督区域。
+2. 像素级对齐
+	提取掩码区域 DiT latent，通过计算第一帧和第 t 帧的相似度（点积）热力图，可以得到一个“预测关键点轨迹”：$$\hat{p}_{i}^{t} = \sum_{x,y} \text{Softmax}(s_{i}^{t})_{x,y} \cdot \mathbf{x}_{x,y}$$ 用 CoTracker 标注的轨迹作为真值进行 MSE 监督。
+3. 语义级对齐
+	通过蒸馏 V-JEPA2 注入语义信息。DiT 和 V-JEPA2 分别提取掩码区域 latent，计算 token **两两相似度（点积）**，以 V-JEPA2 的相似度作为真值进行 MSE 监督。这里的想法是：V-JEPA 中相似度高的 token，其对应的 real world 区域应该具有相似的物理交互关系。
+
+
+用 PhysisForcing 方法对 Wan2.2-5B, Cosmos3-Nano 进行后训练（PF-Wan, PF-Cosmos3）。在 PAI-Bench 和 RBench 明显优于普通视频模型；将 PF-Wan 作为 Fast-WAM backbone，或是在 WorldArena 中作为 action planner 均达成较高成功率。
+
+消融实验表明，每个设计均带来正收益：
+![](./file-20260730232727948.png)
+
+本文的像素和语义分层、区域对齐想法可以进一步扩展。先验模型生成真值 -> 与 world model DiT latent 对齐到同一模态 -> 用真值监督 DiT 的想法普遍适用。
+
 ---
 ## Blogs
 ### how to be good at research
@@ -555,9 +582,27 @@ KDA 中使用 MLA 代替传统自注意力，用 MoE 代替 MLP，并且使用�
 
 Kimi K3 在 Kimi Linear 基础上还使用了 Latent MoE 和 AttnRes。AttnRes 允许每一层在残差连接处选择性地访问之前层的输出。
 
+### Why compute might get 10x+ more expensive in coming years
+
+[原文](https://www.dwarkesh.com/p/why-compute-might-get-10x-more-expensive)
+
+来自 Dwarkesh Patel，讨论了按当前趋势发展下未来计算资源为何会大幅涨价，以及可能的衍生影响。
+
+如果 AI 实验室营收当前以同比 10 倍增长，而计算能力受限于上游已经成型的供应链，只能以 3 倍增长。如果要保持当前增速，必须满足 3 个条件：利润率提高，同样成本营收更多；计算成本上涨，由客户支付；将更多计算资源用于推理（销售），而非训练（研发）。
+
+其中，计算成本上涨将会是最有可能的条件——计算的上游供应短期难以增加，而计算的价值不断提升。当软件工程师能运行在 H100 上时，“按照目前软件工程师的市场价格计算，这台 H100 服务器的年租金应该超过 25 万美元。这相当于当前现货价格的 15 倍。”
+
+在这样的条件下：
+- 护城河加深：与前沿实验室竞争会越来越难，因为前沿实验室以更好的方式利用计算资源；
+- 优质模型胜出：两种不同质量的商品都增加一项固定成本，优质商品的价格相对会降低，因此需求会转向优质商品；
+- AI 应用的成本不断增加，最后用 GPU 生产 AI 短视频这类做法会难以维持。
+
+值得思考的是，“智能”（LLM 展现的智能）不一定是真正的瓶颈。在软件工程中，“人类（智能）”这一环是最大的资源和时间瓶颈，提升智能让整个流程升级。然而物理世界中，“智能”不一定是瓶颈，不一定与价值挂钩：AI 可以缩短药物设计的时间，但不能改变人体试验的流程。
+
 ### 其他
 
 - [ML Job Interviews: The Ultimate Guide](https://silviasapora.github.io/blog/ml-interviews.html) 来自一名面试结果极佳的求职者
 - [AI2027](https://ai-2027.com/) 在 2025 年 4 月预测的 AI 3 年发展（举手投足就是编）
 - [The Most Human Technology](https://x.com/illscience/status/2076714595994206358?s=20) a16z 有关生成式 AI 的乐观设想
+- [Build Academic Website](https://gking.harvard.edu/mysite/) 如何搭建学术主页
 - [How to Read Mathematics?](https://www.alphaxiv.org/abs/2607.24136) 学习数学的指南
