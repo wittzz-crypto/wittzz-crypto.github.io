@@ -36,9 +36,9 @@ export interface AboutPageData {
 export const aboutPageData: AboutPageData = {
   headings: [{ depth: 2, slug: 'social-networks', text: 'Social Networks' }],
   intro: {
-    role: '学生',
+    role: '本科生',
     paragraphs: [
-      '目前是BUAA计算与智能专业本科生。'
+      '目前是 BUAA 计算机学院本科生。'
     ],
     sponsorButton: {
       title: 'Sponsor Me',
