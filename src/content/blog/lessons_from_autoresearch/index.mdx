@@ -18,19 +18,16 @@ heroImage: { src: './monogatari.png', color: '#9698C1' }
 
 ## 实现了什么
 
-所有必要的工具：
+用到的工具
 - Obsidian, Claude Code CLI
-- [MinerU](https://github.com/opendatalab/mineru) ，一个 VLM 驱动的将 PDF/HTML 提取为 Markdown 的工具
+- [MinerU](https://github.com/opendatalab/mineru) ，VLM 驱动将 PDF/HTML 提取为 Markdown
 - claude code plugin: [superpowers](https://github.com/obra/superpowers)
 - obsidian plugin: custom attachment location, git
 - obsidian CLI
 
-
-
 主要参考：
 - [ARIS](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)，一个完全自动化论文生产系统
 - 一篇[L站帖子](https://linux.do/t/topic/1969598)
-
 
 
 我想实现的是：
@@ -39,9 +36,7 @@ heroImage: { src: './monogatari.png', color: '#9698C1' }
 3. 一个 ideation 工作流，让 agent 借助知识库完成 idea 生成、评价和筛选；
 4. 为了对接下游 agent，将 idea 转化为可执行计划。
 
-
-
-文件结构大致如下：
+文件结构大致如下
 ```tree
 ├── CLAUDE.md				# 仓库说明，检索策略说明
 ├── paper_origin			# MinerU 提取的原论文 Markdown
@@ -64,7 +59,7 @@ heroImage: { src: './monogatari.png', color: '#9698C1' }
 ```
 
 
-简要介绍4个知识库 skill：
+设计了 4 个知识库 skill，固定一些常用工作流
 - `paper-reading`: 将 arxiv 论文提取 markdown 到 /paper_origin，然后读 markdown 文件并做笔记。笔记主要包括：论文综合评分；论文背景、问题、insight、方法、实验；贡献评估；关联笔记；TLDR快速介绍等。
 - `build-context-pack`：读取知识库内容，提取研究方向、活跃论文、已有研究链条，总结结构性 Gap，未解决问题等，更新 `_context_pack.md` 文档
 - `research-idea`：先发散探索 idea（迁移方法、寻找缺失环节、寻找矛盾等），并行产生大量后训。然后两轮 review-refine，根据评分筛选top-k，最后归档成为 idea 文档
@@ -78,7 +73,7 @@ heroImage: { src: './monogatari.png', color: '#9698C1' }
 
 
 
-在不到 2 个月内，知识库生产了60篇左右的论文笔记，以及若干 idea：
+在不到 2 个月内，知识库生产了60篇左右的论文笔记，以及若干 idea。
 
 ![](/blog/lessons_from_autoresearch/obsidianGraph.gif)
 
@@ -121,8 +116,6 @@ heroImage: { src: './monogatari.png', color: '#9698C1' }
 ## autoresearch 的未来
 
 当我开始构思这个项目时，openclaw, Opus 4.6, 正掀起前所未有的 FOMO 情绪，LLM 最狂热的使用者们谈论着 tokenmaxxing，产出一个个光鲜的概念，期待用超级智能改变整个工作流。当我写下这些文字时，曾大规模推崇 tokenmaxxing 的扎克博格表示对 agent 发展未达预期，LLM 价格指数开始回调，许多公司用完里一年的 AI 工具预算。LLM 在代码方面的成功，让我们认为它已经拥有足够通用的智能。但是对于非标思考、长程任务、极其丰富的上下文，LLM 依然远非可用。
-
-
 
 LLM 和 agent 的能力边界依然在不断扩展，有朝一日 autoresearch 将不再是问题。期待有开源的成熟 autoresearch 系统，让一年10篇一作不是梦。不过，正如工业界比学术界更能推动 ai 的进步，一个真正有价值的 autoresearch 系统或许不该向“产出论文”的学术 taste 对齐。LLM 值得用在搭建后训练环境上，值得用在合成数据上，但不值得用在“讲故事”和模仿抽象的 taste 上。
 

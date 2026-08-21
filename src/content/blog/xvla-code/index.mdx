@@ -12,13 +12,13 @@ import { GithubCard } from 'astro-pure/advanced'
 
 <GithubCard repo='huggingface/lerobot' />
 
-LeRobot是由Hugging Face开发的一个基于PyTorch的机器人学习框架，集成了整个机器人学习的技术栈，提供了一个良好的机器人学习平台。LeRobot参考[原始代码](https://github.com/2toinf/X-VLA)实现了X-VLA。本文根据huggingface/lerobot仓库中的代码快速浏览X-VLA的部分实现。
+LeRobot是由Hugging Face开发的一个基于 PyTorch 的机器人学习框架，集成了整个机器人学习的技术栈，提供了一个良好的机器人学习平台。LeRobot参考[原始代码](https://github.com/2toinf/X-VLA)实现了X-VLA。本文根据huggingface/lerobot仓库中的代码快速浏览X-VLA的部分实现。
 
 ## 基础环境与文件结构
 
-Ubunutu 24.04 + nvidia-driver-570 + prime-select on-demand + torch 2.10.0 cu128 + RTX5060环境可用。
+Ubunutu 24.04 + nvidia-driver-570 + prime-select on-demand + torch 2.10.0 cu128 + RTX5060 环境可用。
 
-在该配置下使用GPU，会碰到不兼容问题 `RuntimeError: CUDA error: CUBLAS_STATUS_INVALID_VALUE`。改一个PyTorch有关配置可解决：
+在该配置下使用GPU，会碰到不兼容问题 `RuntimeError: CUDA error: CUBLAS_STATUS_INVALID_VALUE`，改一个PyTorch有关配置可解决：
 
 ```python
 conda env config vars set -n lerobot TORCH_BLAS_PREFER_CUBLASLT=1
